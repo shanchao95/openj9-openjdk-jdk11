@@ -987,18 +987,20 @@ abstract class NativeChaCha20Cipher extends CipherSpi {
 
     private final class EngineAEADDec implements ChaChaEngine {
 
-        private final ByteArrayOutputStream cipherBuf;
         private final byte[] tag;
+        private int input_size;
 
         EngineAEADDec() {
             counter = 1;
-            cipherBuf = new ByteArrayOutputStream(CIPHERBUF_BASE);
+            input_size = 0;
             tag = new byte[TAG_LENGTH];
         }
 
         @Override
         public int doUpdate(byte[] in, int inOff, int inLen, byte[] out,
                 int outOff) {
+            int ret = 0;
+            byte[] aadArray = null;
             if (initialized) {
                 // If this is the first update since AAD updates, signal that
                 // we're done processing AAD info and pad the AAD to a multiple
@@ -1009,76 +1011,60 @@ abstract class NativeChaCha20Cipher extends CipherSpi {
 
                 if (in != null) {
                     Objects.checkFromIndexSize(inOff, inLen, in.length);
-                    // Write doUpdate data to the buffer
-                    // No computation done yet
-                    cipherBuf.write(in, inOff, inLen);
+                    aadArray = aadBuf.toByteArray();
+                    aadBuf.reset();
+                    ret = nativeCrypto.ChaCha20DecryptUpdate(context, in, inOff, inLen, out, outOff, aadArray, aadArray.length);
+                    input_size += inLen;
                 }
             } else {
                 throw new IllegalStateException(
                         "Must use either a different key or iv");
             }
-            return 0;
+            return ret;
         }
 
         @Override
         public synchronized int doFinal(byte[] in, int inOff, int inLen, byte[] out,
                 int outOff) throws ShortBufferException, AEADBadTagException,
                 KeyException {
+            int result = 0;
+            byte[] aadArray = null;
 
-            byte[] ctPlusTag;
-            int ctPlusTagLen;
-            if (cipherBuf.size() == 0 && inOff == 0) {
-                // No previous data has been seen before doFinal, so we do
-                // not need to hold any ciphertext in a buffer.  We can
-                // process it directly from the "in" parameter.
-                doUpdate(null, inOff, inLen, out, outOff);
-                ctPlusTag = in;
-                ctPlusTagLen = inLen;
-            } else {
-                doUpdate(in, inOff, inLen, out, outOff);
-                ctPlusTag = cipherBuf.toByteArray();
-                ctPlusTagLen = ctPlusTag.length;
+            if (in != null) {
+                if (inLen < TAG_LENGTH) {
+                    throw new AEADBadTagException("Input too short - need tag");
+                }
+                if (initialized) {
+                    Objects.checkFromIndexSize(inOff, inLen, in.length);
+                    try {
+                        Objects.checkFromIndexSize(outOff, inLen - TAG_LENGTH, out.length);
+                    } catch (IndexOutOfBoundsException ioobe) {
+                        throw new ShortBufferException("Output buffer too small");
+                    }
+                    if (aadBuf.size() > 0) {
+                        aadArray = aadBuf.toByteArray();
+                        aadBuf.reset();
+                    }
+                    int ret = nativeCrypto.ChaCha20FinalDecrypt(context, in, inOff, inLen, out, outOff, aadArray, aadArray.length, TAG_LENGTH);
+                    input_size = 0;
+                    aadDone = false;
+                    if (ret == -2) {
+                        throw new AEADBadTagException("Tag mismatch");
+                    } else if (ret == -1) {
+                        throw new ProviderException("Error in Native ChaCha20Cipher");
+                    }
+                    result = inLen - TAG_LENGTH;
+                } else {
+                    throw new IllegalStateException(
+                            "Must use either a different key or iv");
+                }
             }
-            cipherBuf.reset();
-
-            // ctPlusTag now contains all the data
-
-            // There must at least be a tag length's worth of ciphertext
-            // data in the buffered input.
-            if (ctPlusTagLen < TAG_LENGTH) {
-                throw new AEADBadTagException("Input too short - need tag");
-            }
-
-            //cipher text length
-            int ctLen = ctPlusTagLen - TAG_LENGTH;
-
-            // Make sure we will have enough room for the output buffer
-            try {
-                Objects.checkFromIndexSize(outOff, ctLen, out.length);
-            } catch (IndexOutOfBoundsException ioobe) {
-                throw new ShortBufferException("Output buffer too small");
-            }
-
-            byte aadArray[] = aadBuf.toByteArray();
-            aadBuf.reset();
-
-            // inOff of ctPlusTag is always 0
-            int ret = nativeCrypto.ChaCha20FinalDecrypt(context, ctPlusTag, 0, ctPlusTagLen, out,
-                                             outOff, aadArray, aadArray.length , TAG_LENGTH);
-            aadDone = false;
-
-            if (ret == -2) {
-                throw new AEADBadTagException("Tag mismatch");
-            } else if (ret == -1) {
-                throw new ProviderException("Error in Native ChaCha20Cipher");
-            }
-
-            return ctLen;
+            return result;
         }
 
         @Override
         public int getCipherBufferLength() {
-            return cipherBuf.size();
+            return input_size;
         }
     }
 

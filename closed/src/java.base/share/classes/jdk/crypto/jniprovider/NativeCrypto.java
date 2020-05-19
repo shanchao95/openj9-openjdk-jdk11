@@ -208,6 +208,15 @@ public class NativeCrypto {
                                        byte[] aad,
                                        int aadLen);
 
+    public final native int ChaCha20DecryptUpdate(long context,
+                                       byte[] input,
+                                       int inputOffset,
+                                       int inputLen,
+                                       byte[] output,
+                                       int outputOffset,
+                                       byte[] aad,
+                                       int aadLen);
+
     public final native int ChaCha20FinalEncrypt(long context,
                                              byte[] output,
                                              int outputOffset,
