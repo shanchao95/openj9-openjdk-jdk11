@@ -101,21 +101,16 @@ public class OutputSizeTest {
         cc20.update(input);
         testOutLen(cc20, 1024, 1040);
 
-        // Decryption lengths are handled differently for AEAD mode.  The length
-        // should be zero for anything up to and including the first 16 bytes
-        // (since that's the tag).  Anything above that should be the input
-        // length plus any unprocessed input (via update calls), minus the
-        // 16 byte tag.
+        // Encryption lengths are calculated as the input length minus the tag
+        // length (16).
         cc20.init(Cipher.DECRYPT_MODE, kg.generateKey(),
                 new IvParameterSpec(getRandBuf(12)));
         testOutLen(cc20, 0, 0);
         testOutLen(cc20, 5, 0);
         testOutLen(cc20, 16, 0);
         testOutLen(cc20, 5120, 5104);
-        // Perform an update, then test with a the length of a final chunk
-        // of data.
         cc20.update(input);
-        testOutLen(cc20, 1024, 6128);
+        testOutLen(cc20, 1024, 1008);
     }
 
     private static void testMultiPartAEADDec() throws GeneralSecurityException {
