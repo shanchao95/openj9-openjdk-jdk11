@@ -1634,13 +1634,71 @@ JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_RSAEP
  * Method:    RSADP
  * Signature: ([BI[BIJ)I
  */
-JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_RSADP
+ 
+//  JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_RSADP
+//   (JNIEnv *env, jclass obj, jbyteArray k, jint kLen, jbyteArray m, jint verify, jlong privateRSAKey) {
+
+//     unsigned char* kNative = NULL;
+//     unsigned char* mNative = NULL;
+//     int msg_len = 0;
+//     int msg_len2 = 0;
+//     unsigned int msg_len_rsa_sign = 0;
+//     unsigned char* k2 = NULL;
+//     RSA* rsaKey = NULL;
+
+//     kNative = (unsigned char*)((*env)->GetPrimitiveArrayCritical(env, k, 0));
+//     if (NULL == kNative) {
+//         return -1;
+//     }
+
+//     mNative = (unsigned char*)((*env)->GetPrimitiveArrayCritical(env, m, 0));
+//     if (NULL == mNative) {
+//         (*env)->ReleasePrimitiveArrayCritical(env, k, kNative, JNI_ABORT);
+//         return -1;
+//     }
+//     rsaKey = (RSA*)(intptr_t)privateRSAKey;
+//     msg_len = (*OSSL_RSA_private_encrypt)(kLen, (unsigned char*)kNative, (unsigned char*)mNative, rsaKey, RSA_NO_PADDING);
+
+//     const int rsa_size = msg_len;
+//     if ((-1 != verify) && (-1 != msg_len)) {
+//         if (verify == msg_len) {
+//             k2 = (unsigned char*)malloc((rsa_size) * (sizeof(unsigned char)));
+//             if (NULL != k2) {
+//                 /* mNative is size 'verify' */
+//                 msg_len2 = (*OSSL_RSA_public_decrypt)((int)verify, (unsigned char*)mNative, (unsigned char*)k2, rsaKey, RSA_NO_PADDING);
+//                 if (-1 != msg_len2) {
+//                     int i;
+//                     for (i = 0; i < kLen; i++) {
+//                         if (kNative[i] != k2[i] && kNative[i] != k2[i+1]) {
+//                             msg_len = -2;
+//                             break;
+//                         }
+//                     }
+//                 } else {
+//                     msg_len = -1;
+//                 }
+//                 free(k2);
+//             } else {
+//                 msg_len = -1;
+//             }
+//         } else {
+//             msg_len = -2;
+//         }
+//     }
+
+//     (*env)->ReleasePrimitiveArrayCritical(env, k, kNative, JNI_ABORT);
+//     (*env)->ReleasePrimitiveArrayCritical(env, m, mNative, 0);
+//     return (jint)msg_len;
+// }
+
+  JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_RSADP
   (JNIEnv *env, jclass obj, jbyteArray k, jint kLen, jbyteArray m, jint verify, jlong privateRSAKey) {
 
     unsigned char* kNative = NULL;
     unsigned char* mNative = NULL;
     int msg_len = 0;
     int msg_len2 = 0;
+    unsigned int msg_len_rsa_sign = 0;
     unsigned char* k2 = NULL;
     RSA* rsaKey = NULL;
 
@@ -1654,32 +1712,52 @@ JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_RSADP
         (*env)->ReleasePrimitiveArrayCritical(env, k, kNative, JNI_ABORT);
         return -1;
     }
-
+    // mNative = (unsigned char *)malloc(129*sizeof(char));
     rsaKey = (RSA*)(intptr_t)privateRSAKey;
+    // rsaKey = createRSA(0);
 
     /* OSSL_RSA_private_encrypt returns -1 on error */
-    msg_len = (*OSSL_RSA_private_encrypt)(kLen, kNative, mNative, rsaKey, RSA_NO_PADDING);
+    printf("~~~~~~~~~~~~~ NativeCrypto.c line 1659, kLen = %d \n", kLen);
+    // unsigned char kNative[128] = {-64, 116, -41, 78, 64, 10, 2, -86, -89, -2, -98, -58, -82, -58, -25, 90, -120, 116, 48, 113, -45, -9, -32, -11, 20, -125, -122, 49, 12, 46, 78, -90, -82, -122, -36, 17, -90, -26, 31, 96, 85, 11, 63, -78, 80, 35, -72, 37, 84, -16, -116, 11, 82, -95, 86, 23, -121, -34, -87, 101, -103, -25, -29, 0, -75, 22, 55, 20, -41, -4, -83, 113, 126, -31, -13, -98, -48, -59, 113, -66, 4, -117, -62, -43, -43, 73, 101, 94, -26, -112, -63, -6, -113, 15, 7, 28, -124, -22, -70, -9, -94, 20, 55, 72, -74, 34, -76, 25, -57, -53, -50, -2, -24, 66, 126, 56, -120, 78, 103, 90, 6, 105, -105, -64, -79, 58, -25, -68};
+    // msg_len = (*OSSL_RSA_private_encrypt)(128, (unsigned char*)kNative, (unsigned char*)mNative, rsaKey, RSA_NO_PADDING);
 
+    msg_len = (*OSSL_RSA_private_encrypt)(kLen, (unsigned char*)kNative, (unsigned char*)mNative, rsaKey, RSA_NO_PADDING);
+
+    // const int rsa_size = (*OSSL_RSA_size)(rsaKey);
+    const int rsa_size = msg_len;
+    printf("~~~~~~~~~~~~~ NativeCrypto.c line 1661, rsa_size = %d \n", rsa_size);
+    // unsigned char* mNative_rsa_sign = (unsigned char*)malloc(kLen * (sizeof(unsigned char)));
+    // int rsa_sign_ret = (*OSSL_RSA_sign)( RSA_PKCS1_PSS_PADDING, (unsigned char*)kNative,(unsigned int)kLen, (unsigned char*)mNative_rsa_sign, &msg_len_rsa_sign, rsaKey);
+    //  int RSA_sign(int type, const unsigned char *m, unsigned int m_len, unsigned char *sigret, unsigned int *siglen, RSA *rsa);
+    printf("~~~~~~~~~~~~~ NativeCrypto.c line 1662, msg_len = %d \n", msg_len);
     if ((-1 != verify) && (-1 != msg_len)) {
-        if (verify == kLen) {
-            k2 = malloc(kLen * (sizeof(unsigned char)));
+        printf("~~~~~~~~~~~~~ NativeCrypto.c line 1664 \n");
+        if (verify == msg_len) {
+            k2 = (unsigned char*)malloc((rsa_size) * (sizeof(unsigned char)));
             if (NULL != k2) {
-
+                printf("~~~~~~~~~~~~~ NativeCrypto.c line 1668 \n");
                 /* mNative is size 'verify' */
-                msg_len2 = (*OSSL_RSA_public_decrypt)(verify, mNative, k2, rsaKey, RSA_NO_PADDING);
+                msg_len2 = (*OSSL_RSA_public_decrypt)((int)verify, (unsigned char*)mNative, (unsigned char*)k2, rsaKey, RSA_NO_PADDING);
+                printf("~~~~~~~~~~~~~ NativeCrypto.c line 1671, msg_len2 = %d \n", msg_len2);
                 if (-1 != msg_len2) {
-
+                    printf("~~~~~~~~~~~~~ NativeCrypto.c line 1673 \n");
                     int i;
-                    for (i = 0; i < verify; i++) {
+                    for (i = 0; i < kLen; i++) {
+                        printf("~~~~~~~~~~~~~ NativeCrypto.c line 1676, i = %d \n", i);
+                        printf("kNative[%d] = %d, k2[%d] = %d , mNative[%d] = %d \n", i, kNative[i], i, k2[i], i , mNative[i]);
                         if (kNative[i] != k2[i]) {
+                            if (i == 0) {
+                                k2++;
+                                continue;
+                            }
                             msg_len = -2;
-                            break;
-                        }
                     }
+                    printf("~~~~~~~~~~~~~ NativeCrypto.c line 1707 \n");
                 } else {
                     msg_len = -1;
                 }
                 free(k2);
+                printf("~~~~~~~~~~~~~ NativeCrypto.c line 1712 \n");
             } else {
                 msg_len = -1;
             }
@@ -1690,9 +1768,83 @@ JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_RSADP
 
     (*env)->ReleasePrimitiveArrayCritical(env, k, kNative, JNI_ABORT);
     (*env)->ReleasePrimitiveArrayCritical(env, m, mNative, 0);
-
+    printf("~~~~~~~~~~~~~ NativeCrypto.c line 1697, return!!  msg_len = %d, msg_len2 = %d  \n", msg_len, msg_len2);
     return (jint)msg_len;
 }
+// JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_RSADP
+//   (JNIEnv *env, jclass obj, jbyteArray k, jint kLen, jbyteArray m, jint verify, jlong privateRSAKey) {
+
+//     unsigned char* kNative = NULL;
+//     unsigned char* mNative = NULL;
+//     int msg_len = 0;
+//     int msg_len2 = 0;
+//     unsigned char* k2 = NULL;
+//     RSA* rsaKey = NULL;
+
+//     kNative = (unsigned char*)((*env)->GetPrimitiveArrayCritical(env, k, 0));
+//     if (NULL == kNative) {
+//         return -1;
+//     }
+
+//     mNative = (unsigned char*)((*env)->GetPrimitiveArrayCritical(env, m, 0));
+//     if (NULL == mNative) {
+//         (*env)->ReleasePrimitiveArrayCritical(env, k, kNative, JNI_ABORT);
+//         return -1;
+//     }
+
+//     rsaKey = (RSA*)(intptr_t)privateRSAKey;
+
+//     /* OSSL_RSA_private_encrypt returns -1 on error */
+//     msg_len = (*OSSL_RSA_private_encrypt)(kLen, kNative, mNative, rsaKey, RSA_NO_PADDING);
+
+//     if ((-1 != verify) && (-1 != msg_len)) {
+//         if (verify == msg_len) {
+//             k2 = malloc(msg_len * (sizeof(unsigned char)));
+//             unsigned char *k2_org = k2;
+//             if (NULL != k2) {
+
+//                 /* mNative is size 'verify' */
+//                 msg_len2 = (*OSSL_RSA_public_decrypt)(verify, mNative, k2, rsaKey, RSA_NO_PADDING);
+//                 if (-1 != msg_len2) {
+
+//                     int i;
+//                     // bool break_ = false;
+//                     for (i = 0; i < kLen; i++) {
+//                         // if (kNative[i] != k2[i] && kNative[i] != k2[i+1]) {
+//                         //     msg_len = -2;
+//                         //     break;
+//                         // }
+                        
+//                         printf("kNative[%d] = %d, k2[%d] = %d , mNative[%d] = %d \n", i, kNative[i], i, k2[i], i , mNative[i]);
+                        
+//                         if (kNative[i] != k2[i]) {
+//                             if (i == 0) {
+//                                 k2++;
+//                                 continue;
+//                             }
+//                             msg_len = -2;
+//                             // break;
+//                             // break_ = true;
+//                         }
+//                         // printf("kNative[%d] = %d, k2[%d] = %d , mNative[%d] = %d \n", i, kNative[i], i, k2[i], i , mNative[i]);
+//                     }
+//                 } else {
+//                     msg_len = -1;
+//                 }
+//                 free(k2_org);
+//             } else {
+//                 msg_len = -1;
+//             }
+//         } else {
+//             msg_len = -2;
+//         }
+//     }
+
+//     (*env)->ReleasePrimitiveArrayCritical(env, k, kNative, JNI_ABORT);
+//     (*env)->ReleasePrimitiveArrayCritical(env, m, mNative, 0);
+
+//     return (jint)msg_len;
+// }
 
 /*
  * Converts 2's complement representation of a big integer
