@@ -179,11 +179,16 @@ public class NativeCrypto {
 
     public final native void destroyRSAKey(long key);
 
+    public final native long create_rsadp_BN();
+
+    public final native void free_rsadp_BN(long free_BN_ctx);
+
     public final native int RSADP(byte[] k,
                                   int kLen,
                                   byte[] m,
                                   int verify,
-                                  long RSAPrivateCrtKey);
+                                  long RSAPrivateCrtKey,
+                                  long rsadpBNptr);
 
     public final native int RSAEP(byte[] k,
                                   int kLen,

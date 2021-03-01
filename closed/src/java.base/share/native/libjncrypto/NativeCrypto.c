@@ -99,8 +99,15 @@ typedef int OSSL_RSA_set0_factors_t(RSA *, BIGNUM *, BIGNUM *);
 typedef void OSSL_RSA_free_t (RSA *);
 typedef int OSSL_RSA_public_decrypt_t(int, const unsigned char *, unsigned char *, RSA *, int);
 typedef int OSSL_RSA_private_encrypt_t (int, const unsigned char *, unsigned char *, RSA *, int);
-typedef BIGNUM* OSSL_BN_bin2bn_t (const unsigned char *, int, BIGNUM *);
-typedef void OSSL_BN_set_negative_t (BIGNUM *, int);
+typedef int OSSL_RSA_get0_key_t(const RSA *, const BIGNUM **, const BIGNUM **, const BIGNUM **);;
+typedef BIGNUM* OSSL_BN_bin2bn_t(const unsigned char *, int, BIGNUM *);
+typedef int OSSL_BN_mod_exp_t(BIGNUM *, BIGNUM *, const BIGNUM *, const BIGNUM *, BN_CTX *);
+typedef int OSSL_BN_ucmp_t(BIGNUM *, BIGNUM *);
+typedef int OSSL_BN_zero_t(BIGNUM *a);
+typedef void OSSL_BN_set_negative_t(BIGNUM *, int);
+typedef BN_CTX *OSSL_BN_CTX_new_t();
+typedef void OSSL_BN_CTX_free_t(BN_CTX *);
+typedef BIGNUM *OSSL_BN_new_t();
 typedef void OSSL_BN_free_t (BIGNUM *);
 
 typedef int OSSL_CRYPTO_num_locks_t();
@@ -173,7 +180,14 @@ OSSL_RSA_set0_key_t* OSSL_RSA_set0_crt_params;
 OSSL_RSA_free_t* OSSL_RSA_free;
 OSSL_RSA_public_decrypt_t* OSSL_RSA_public_decrypt;
 OSSL_RSA_private_encrypt_t* OSSL_RSA_private_encrypt;
+OSSL_RSA_get0_key_t* OSSL_RSA_get0_key;
 OSSL_BN_bin2bn_t* OSSL_BN_bin2bn;
+OSSL_BN_mod_exp_t* OSSL_BN_mod_exp;
+OSSL_BN_ucmp_t* OSSL_BN_ucmp;
+OSSL_BN_zero_t* OSSL_BN_zero;
+OSSL_BN_CTX_new_t* OSSL_BN_CTX_new;
+OSSL_BN_CTX_free_t* OSSL_BN_CTX_free;
+OSSL_BN_new_t* OSSL_BN_new;
 OSSL_BN_set_negative_t* OSSL_BN_set_negative;
 OSSL_BN_free_t* OSSL_BN_free;
 
@@ -347,7 +361,14 @@ JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_loadCrypto
     OSSL_RSA_free = (OSSL_RSA_free_t *)find_crypto_symbol(crypto_library, "RSA_free");
     OSSL_RSA_public_decrypt = (OSSL_RSA_public_decrypt_t *)find_crypto_symbol(crypto_library, "RSA_public_decrypt");
     OSSL_RSA_private_encrypt = (OSSL_RSA_private_encrypt_t *)find_crypto_symbol(crypto_library, "RSA_private_decrypt");
+    OSSL_RSA_get0_key = (OSSL_RSA_get0_key_t *)find_crypto_symbol(crypto_library, "RSA_get0_key");
     OSSL_BN_bin2bn = (OSSL_BN_bin2bn_t *)find_crypto_symbol(crypto_library, "BN_bin2bn");
+    OSSL_BN_mod_exp = (OSSL_BN_mod_exp_t *)find_crypto_symbol(crypto_library, "BN_mod_exp");
+    OSSL_BN_ucmp = (OSSL_BN_ucmp_t *)find_crypto_symbol(crypto_library, "BN_ucmp");
+    OSSL_BN_zero = (OSSL_BN_zero_t *)find_crypto_symbol(crypto_library, "BN_zero");
+    OSSL_BN_CTX_new = (OSSL_BN_CTX_new_t *)find_crypto_symbol(crypto_library, "BN_CTX_new");
+    OSSL_BN_CTX_free = (OSSL_BN_CTX_free_t *)find_crypto_symbol(crypto_library, "BN_CTX_free");
+    OSSL_BN_new = (OSSL_BN_new_t *)find_crypto_symbol(crypto_library, "BN_new");
     OSSL_BN_set_negative = (OSSL_BN_set_negative_t *)find_crypto_symbol(crypto_library, "BN_set_negative");
     OSSL_BN_free = (OSSL_BN_free_t *)find_crypto_symbol(crypto_library, "BN_free");
 
@@ -389,7 +410,14 @@ JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_loadCrypto
         (NULL == OSSL_RSA_free) ||
         (NULL == OSSL_RSA_public_decrypt) ||
         (NULL == OSSL_RSA_private_encrypt) ||
+        (NULL == OSSL_RSA_get0_key) ||
         (NULL == OSSL_BN_bin2bn) ||
+        (NULL == OSSL_BN_mod_exp) ||
+        (NULL == OSSL_BN_ucmp) ||
+        (NULL == OSSL_BN_zero) ||
+        (NULL == OSSL_BN_CTX_new) ||
+        (NULL == OSSL_BN_CTX_free) ||
+        (NULL == OSSL_BN_new) ||
         (NULL == OSSL_BN_set_negative) ||
         (NULL == OSSL_BN_free) ||
         /* Check symbols that are only available in OpenSSL 1.1.x and above */
@@ -1634,14 +1662,62 @@ JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_RSAEP
  * Method:    RSADP
  * Signature: ([BI[BIJ)I
  */
-JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_RSADP
-  (JNIEnv *env, jclass obj, jbyteArray k, jint kLen, jbyteArray m, jint verify, jlong privateRSAKey) {
 
+typedef struct {
+    BN_CTX *ctx;
+    BIGNUM *k_bigNum;
+    BIGNUM *m_bigNum;
+    BIGNUM *rem;
+} RSADP_BN;
+
+/*
+ * Class:     jdk_crypto_jniprovider_NativeCrypto
+ * Method:    create_rsadp_BN
+ * Signature: ()J
+ */
+JNIEXPORT jlong JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_create_1rsadp_1BN
+	(JNIEnv *env, jclass thisObj) {
+
+    RSADP_BN *rsadp_bn_ptr = (RSADP_BN *)malloc(sizeof(RSADP_BN));
+    rsadp_bn_ptr->ctx = (*OSSL_BN_CTX_new)();
+    rsadp_bn_ptr->k_bigNum = (*OSSL_BN_new)();
+    rsadp_bn_ptr->m_bigNum = (*OSSL_BN_new)();
+    rsadp_bn_ptr->rem = (*OSSL_BN_new)();
+    return (jlong)rsadp_bn_ptr;
+}
+
+/*
+ * Class:     jdk_crypto_jniprovider_NativeCrypto
+ * Method:    free_rsadp_BN
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_free_1rsadp_1BN
+	(JNIEnv *env, jclass thisObj, jlong rsadpBNptr) {
+
+    RSADP_BN *rsadp_bn_ptr = (RSADP_BN *)rsadpBNptr;
+    (*OSSL_BN_CTX_free)(rsadp_bn_ptr->ctx);
+    (*OSSL_BN_free)(rsadp_bn_ptr->k_bigNum);
+    (*OSSL_BN_free)(rsadp_bn_ptr->m_bigNum);
+    (*OSSL_BN_free)(rsadp_bn_ptr->rem);
+    free(rsadp_bn_ptr);
+    return;
+}
+
+/* RSADP Cryptographic Primitive, RSA Private Key operation
+ * Returns -1 on error
+ * The param verify is -1 for 'no verify', otherwise it is size of m (with verify)
+ *
+ * Class:     jdk_crypto_jniprovider_NativeCrypto
+ * Method:    RSADP
+ * Signature: ([BI[BIJ)I
+ */
+JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_RSADP
+  (JNIEnv *env, jclass obj, jbyteArray k, jint kLen, jbyteArray m, jint verify, jlong privateRSAKey, jlong rsadpBNptr) {
+
+    RSADP_BN *rsadp_bn_ptr = (RSADP_BN *)rsadpBNptr;
     unsigned char* kNative = NULL;
     unsigned char* mNative = NULL;
     int msg_len = 0;
-    int msg_len2 = 0;
-    unsigned char* k2 = NULL;
     RSA* rsaKey = NULL;
 
     kNative = (unsigned char*)((*env)->GetPrimitiveArrayCritical(env, k, 0));
@@ -1661,30 +1737,29 @@ JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_RSADP
     msg_len = (*OSSL_RSA_private_encrypt)(kLen, kNative, mNative, rsaKey, RSA_NO_PADDING);
 
     if ((-1 != verify) && (-1 != msg_len)) {
-        if (verify == kLen) {
-            k2 = malloc(kLen * (sizeof(unsigned char)));
-            if (NULL != k2) {
-
-                /* mNative is size 'verify' */
-                msg_len2 = (*OSSL_RSA_public_decrypt)(verify, mNative, k2, rsaKey, RSA_NO_PADDING);
-                if (-1 != msg_len2) {
-
-                    int i;
-                    for (i = 0; i < verify; i++) {
-                        if (kNative[i] != k2[i]) {
-                            msg_len = -2;
-                            break;
-                        }
-                    }
-                } else {
+        if (verify == msg_len) {
+            /* mNative is size 'verify' */
+            /* verify by comparing BigNum of mNative and m_bigNum ^ e % n */
+            const BIGNUM *n = NULL;
+            const BIGNUM *e = NULL;
+            (*OSSL_RSA_get0_key)(rsaKey, (const BIGNUM **)&n, (const BIGNUM **)&e, NULL);
+            (*OSSL_BN_bin2bn)(kNative, kLen, rsadp_bn_ptr->k_bigNum);
+            (*OSSL_BN_bin2bn)(mNative, msg_len, rsadp_bn_ptr->m_bigNum);
+            if (NULL != rsadp_bn_ptr->k_bigNum && NULL != rsadp_bn_ptr->m_bigNum && NULL != e && NULL != n) {
+                if (!(*OSSL_BN_mod_exp)(rsadp_bn_ptr->rem, rsadp_bn_ptr->m_bigNum, e, n, rsadp_bn_ptr->ctx)) {
                     msg_len = -1;
                 }
-                free(k2);
+                if (0 != (*OSSL_BN_ucmp)(rsadp_bn_ptr->k_bigNum, rsadp_bn_ptr->rem)) {
+                    msg_len = -1;
+                }
             } else {
                 msg_len = -1;
             }
+            (*OSSL_BN_zero)(rsadp_bn_ptr->k_bigNum);
+            (*OSSL_BN_zero)(rsadp_bn_ptr->m_bigNum);
+            (*OSSL_BN_zero)(rsadp_bn_ptr->rem);
         } else {
-            msg_len = -2;
+            msg_len = -1;
         }
     }
 

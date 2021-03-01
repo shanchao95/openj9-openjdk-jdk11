@@ -59,6 +59,8 @@ public final class NativeRSACore {
 
     private static NativeCrypto nativeCrypto;
 
+    private static final ThreadLocal<RSADPBigNumRPointer> rsadpBnPtr = new ThreadLocal<RSADPBigNumRPointer>() {};
+
     static {
         nativeCrypto = NativeCrypto.getNativeCrypto();
     }
@@ -138,17 +140,40 @@ public final class NativeRSACore {
             outputLen = getByteLength(n);
             output = new byte[outputLen];
             int verifyInt = verify ? outputLen : -1;
-            outputLen = nativeCrypto.RSADP(msg, msg.length, output, verifyInt, nativePtr);
+            RSADPBigNumRPointer rsadpBn = rsadpBnPtr.get();
+            if (rsadpBn == null){
+                rsadpBn = new RSADPBigNumRPointer();
+                rsadpBnPtr.set(rsadpBn);
+            }
+            outputLen = nativeCrypto.RSADP(msg, msg.length, output, verifyInt, nativePtr, rsadpBn.getBN());
         } finally {
             key.returnNativePtr(nativePtr);
         }
-
         if (outputLen == -1) {
-            return null;
-        } else if (outputLen == -2) {
             throw new BadPaddingException("RSA private key operation failed");
         }
 
         return output;
+    }
+
+    static class RSADPBigNumRPointer {
+        long rsadpBN = 0;
+
+        RSADPBigNumRPointer() {
+            this.rsadpBN = nativeCrypto.create_rsadp_BN();
+        }
+
+        @Override
+        protected synchronized void finalize() throws Throwable {
+            try {
+                nativeCrypto.free_rsadp_BN(rsadpBN);
+            } finally {
+                super.finalize();
+            }
+        }
+
+        long getBN() {
+            return rsadpBN;
+        }
     }
 }
