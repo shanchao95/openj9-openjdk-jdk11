@@ -281,6 +281,7 @@ JNIEXPORT jint JNICALL Java_jdk_crypto_jniprovider_NativeCrypto_loadCrypto
         }
         ossl_ver = 1;
     }
+    printf("OpenSSL version: %s\n", openssl_version);
 
     /* Load the function symbols for OpenSSL errors. */
     OSSL_error_string_n = (OSSL_error_string_n_t*)find_crypto_symbol(crypto_library, "ERR_error_string_n");
